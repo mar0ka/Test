@@ -1,0 +1,65 @@
+name: Build FrostLoader IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project.yml
+        run: |
+          cat << 'EOF' > project.yml
+          name: FrostLoader
+          options:
+            bundleIdPrefix: com.mar0ka
+          targets:
+            FrostLoader:
+              type: application
+              platform: iOS
+              deploymentTarget: "16.0"
+              sources:
+                - ContentView.swift
+                - frostloaderApp.swift
+              settings:
+                base:
+                  GENERATE_INFOPLIST_FILE: YES
+                  PRODUCT_BUNDLE_IDENTIFIER: com.mar0ka.frostloader
+                  CURRENT_PROJECT_VERSION: 1
+                  MARKETING_VERSION: "1.0"
+          EOF
+
+      - name: Generate .xcodeproj
+        run: xcodegen generate
+
+      - name: Build .app
+        run: |
+          xcodebuild -project FrostLoader.xcodeproj \
+            -scheme FrostLoader \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package into .ipa
+        run: |
+          mkdir -p Payload
+          cp -r build/Build/Products/Release-iphoneos/*.app Payload/
+          zip -r FrostLoader.ipa Payload
+
+      - name: Upload .ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FrostLoader-IPA
+          path: FrostLoader.ipa
